@@ -49,14 +49,13 @@ const Home = () => {
         }
       } else {
         console.log("PC");
-        navigator.getUserMedia(
-          { video: {} },
-          (stream) => {
+        navigator.mediaDevices
+          .getUserMedia({ video: true })
+          .then((stream: MediaStream) => {
             video.srcObject = stream;
             video.play();
-          },
-          (err) => console.error(err)
-        );
+          })
+          .catch((err: any) => console.error(err));
       }
     };
 
@@ -71,10 +70,17 @@ const Home = () => {
       const canvas = canvasRef.current;
       if (!video || !canvas) return;
 
+      // Ensure video dimensions are set
       const displaySize = {
         width: video.videoWidth,
         height: video.videoHeight,
       };
+
+      if (displaySize.width === 0 || displaySize.height === 0) {
+        console.error("Invalid video dimensions:", displaySize);
+        return;
+      }
+
       faceapi.matchDimensions(canvas, displaySize);
 
       const canvas_bg = document.createElement("canvas");
@@ -126,21 +132,23 @@ const Home = () => {
             video.videoWidth,
             video.videoHeight
           );
-          const p_ =
-            Math.floor(x_ + w_ / 2) +
-            Math.floor(y_ + h_ / 2) * video.videoWidth;
-          const v_ = Math.floor(
-            (frame?.data[p_ * 4 + 0] +
-              frame?.data[p_ * 4 + 1] +
-              frame?.data[p_ * 4 + 2]) /
-              3
-          );
+          if (frame) {
+            const p_ =
+              Math.floor(x_ + w_ / 2) +
+              Math.floor(y_ + h_ / 2) * video.videoWidth;
+            const v_ = Math.floor(
+              (frame.data[p_ * 4 + 0] +
+                frame.data[p_ * 4 + 1] +
+                frame.data[p_ * 4 + 2]) /
+                3
+            );
 
-          setIrisC((prev) => {
-            const newIrisC = [...prev, v_];
-            if (newIrisC.length > 100) newIrisC.shift();
-            return newIrisC;
-          });
+            setIrisC((prev) => {
+              const newIrisC = [...prev, v_];
+              if (newIrisC.length > 100) newIrisC.shift();
+              return newIrisC;
+            });
+          }
 
           const meanIrisC =
             irisC.reduce((sum, val) => sum + val, 0) / irisC.length;
@@ -159,41 +167,45 @@ const Home = () => {
             }
           }
 
-          ctx_bg.strokeStyle = "red";
-          ctx_bg.lineWidth = 5;
-          const Ox = 0;
-          const Oy = canvas_bg.height / 2;
-          const Lx = canvas_bg.width;
-          const Ly = canvas_bg.height / 2;
-          let vx = (0 / irisC.length) * Lx;
-          let vy = (irisC[0] / 255) * Ly;
-          ctx_bg.beginPath();
-          ctx_bg.moveTo(Ox + vx, Oy - vy);
-          for (let i = 1; i < irisC.length; i++) {
-            vx = (i / irisC.length) * Lx;
-            vy = (irisC[i] / 255) * Ly;
+          if (ctx_bg) {
+            ctx_bg.strokeStyle = "red";
+            ctx_bg.lineWidth = 5;
+            const Ox = 0;
+            const Oy = canvas_bg.height / 2;
+            const Lx = canvas_bg.width;
+            const Ly = canvas_bg.height / 2;
+            let vx = (0 / irisC.length) * Lx;
+            let vy = (irisC[0] / 255) * Ly;
+            ctx_bg.beginPath();
+            ctx_bg.moveTo(Ox + vx, Oy - vy);
+            for (let i = 1; i < irisC.length; i++) {
+              vx = (i / irisC.length) * Lx;
+              vy = (irisC[i] / 255) * Ly;
+              ctx_bg.lineTo(Ox + vx, Oy - vy);
+            }
+            ctx_bg.stroke();
+
+            ctx_bg.strokeStyle = "rgb(0,255,0)";
+            ctx_bg.lineWidth = 2;
+            ctx_bg.beginPath();
+            vx = 0 * Lx;
+            vy = ((meanIrisC * vThreshold) / 255) * Ly;
+            ctx_bg.moveTo(Ox + vx, Oy - vy);
+            vx = 1 * Lx;
             ctx_bg.lineTo(Ox + vx, Oy - vy);
-          }
-          ctx_bg.stroke();
+            ctx_bg.stroke();
 
-          ctx_bg.strokeStyle = "rgb(0,255,0)";
-          ctx_bg.lineWidth = 2;
-          ctx_bg.beginPath();
-          vx = 0 * Lx;
-          vy = ((meanIrisC * vThreshold) / 255) * Ly;
-          ctx_bg.moveTo(Ox + vx, Oy - vy);
-          vx = 1 * Lx;
-          ctx_bg.lineTo(Ox + vx, Oy - vy);
-          ctx_bg.stroke();
-
-          const t2 = performance.now();
-          ctx.font = "48px serif";
-          ctx.fillText("FPS:" + Math.floor(1000.0 / (t2 - t1)), 10, 50);
-          ctx.fillText("Count:" + blinkCount, 10, 100);
-          if (nowBlinking) {
-            ctx.fillText("Blinking", 10, 150);
+            const t2 = performance.now();
+            if (ctx) {
+              ctx.font = "48px serif";
+              ctx.fillText("FPS:" + Math.floor(1000.0 / (t2 - t1)), 10, 50);
+              ctx.fillText("Count:" + blinkCount, 10, 100);
+              if (nowBlinking) {
+                ctx.fillText("Blinking", 10, 150);
+              }
+            }
+            t1 = t2;
           }
-          t1 = t2;
         }
       }, 33);
 
